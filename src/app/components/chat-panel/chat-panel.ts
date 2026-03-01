@@ -1,11 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AlphaAdapterService } from '../../services/alpha-adapter.service';
+import { AlphaAdapterService, AgentResponse } from '../../services/alpha-adapter.service';
 
 interface Message {
   role: 'user' | 'assistant';
-  content: string;
+  content: string | AgentResponse;
   timestamp: Date;
 }
 
@@ -25,18 +25,81 @@ interface Message {
       </div>
 
       <!-- Messages -->
-      <div class="flex-1 overflow-y-auto p-4 space-y-4 font-sans text-sm">
+      <div class="flex-1 overflow-y-auto p-4 space-y-6 font-sans text-sm">
         @for (msg of messages(); track msg.timestamp) {
           <div class="flex flex-col" [class.items-end]="msg.role === 'user'">
-            <div class="max-w-[85%] p-3 rounded-lg leading-relaxed"
-                 [ngClass]="msg.role === 'user' ? 'bg-finance-accent/10 border border-finance-accent/20 text-finance-accent' : 'bg-finance-border/30 border border-finance-border text-finance-text'">
-              {{ msg.content }}
-            </div>
+            
+            <!-- User Message -->
+            @if (msg.role === 'user') {
+              <div class="max-w-[85%] p-3 rounded-lg leading-relaxed bg-finance-accent/10 border border-finance-accent/20 text-finance-accent">
+                {{ msg.content }}
+              </div>
+            }
+
+            <!-- Assistant Message (Structured) -->
+            @if (msg.role === 'assistant') {
+              <div class="max-w-[95%] w-full space-y-3">
+                @if (isString(msg.content)) {
+                  <div class="p-3 rounded-lg bg-finance-border/30 border border-finance-border text-finance-text">
+                    {{ msg.content }}
+                  </div>
+                } @else {
+                  <!-- Summary -->
+                  <div class="p-3 rounded-lg bg-finance-border/30 border border-finance-border text-finance-text leading-relaxed">
+                    {{ asAgentResponse(msg.content).summary }}
+                  </div>
+
+                  <!-- Insights Grid -->
+                  <div class="grid grid-cols-2 gap-2">
+                    @for (insight of asAgentResponse(msg.content).insights; track insight.label) {
+                      <div class="p-2 rounded-lg bg-finance-bg border border-finance-border flex flex-col gap-1">
+                        <div class="flex justify-between items-center">
+                          <span class="text-[10px] font-mono text-finance-muted uppercase">{{ insight.label }}</span>
+                          <span class="material-icons text-xs" 
+                                [ngClass]="{
+                                  'text-finance-accent': insight.trend === 'up',
+                                  'text-red-500': insight.trend === 'down',
+                                  'text-finance-muted': insight.trend === 'neutral'
+                                }">{{ insight.icon }}</span>
+                        </div>
+                        <span class="text-xs font-bold font-mono">{{ insight.value }}</span>
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Recommendation -->
+                  @if (asAgentResponse(msg.content).recommendation; as rec) {
+                    <div class="p-3 rounded-lg border flex flex-col gap-2"
+                         [ngClass]="{
+                           'bg-finance-accent/5 border-finance-accent/30': rec.action === 'BUY',
+                           'bg-red-500/5 border-red-500/30': rec.action === 'SELL',
+                           'bg-finance-border/30 border-finance-border': rec.action === 'HOLD' || rec.action === 'WATCH'
+                         }">
+                      <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                          <span class="text-[10px] font-mono uppercase tracking-widest opacity-70">Recommendation</span>
+                          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono"
+                                [ngClass]="{
+                                  'bg-finance-accent text-finance-bg': rec.action === 'BUY',
+                                  'bg-red-500 text-white': rec.action === 'SELL',
+                                  'bg-finance-muted text-white': rec.action === 'HOLD' || rec.action === 'WATCH'
+                                }">{{ rec.action }}</span>
+                        </div>
+                        <span class="text-[10px] font-mono opacity-60">Conf: {{ rec.confidence * 100 }}%</span>
+                      </div>
+                      <p class="text-[11px] leading-tight opacity-90">{{ rec.reason }}</p>
+                    </div>
+                  }
+                }
+              </div>
+            }
+
             <span class="text-[10px] font-mono text-finance-muted mt-1 px-1">
               {{ msg.role === 'assistant' ? 'ALPHA-ADAPTER' : 'USER' }} • {{ msg.timestamp | date:'HH:mm:ss' }}
             </span>
           </div>
         }
+        
         @if (isTyping()) {
           <div class="flex flex-col items-start gap-1">
             <div class="bg-finance-border/30 border border-finance-border p-3 rounded-lg flex items-center gap-3">
@@ -78,10 +141,22 @@ export class ChatPanelComponent {
   private service = inject(AlphaAdapterService);
   
   messages = signal<Message[]>([
-    { role: 'assistant', content: 'Alpha-Adapter initialized. LoRA weights loaded for tech sector. How can I assist with your portfolio analysis today?', timestamp: new Date() }
+    { 
+      role: 'assistant', 
+      content: 'Alpha-Adapter initialized. LoRA weights loaded for tech sector. How can I assist with your portfolio analysis today?', 
+      timestamp: new Date() 
+    }
   ]);
   userInput = '';
   isTyping = signal(false);
+
+  isString(val: string | AgentResponse): val is string {
+    return typeof val === 'string';
+  }
+
+  asAgentResponse(val: string | AgentResponse): AgentResponse {
+    return val as AgentResponse;
+  }
 
   async sendMessage(event: Event) {
     event.preventDefault();

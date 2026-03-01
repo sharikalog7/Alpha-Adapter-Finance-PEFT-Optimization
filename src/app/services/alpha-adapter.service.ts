@@ -1,11 +1,28 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 
 export interface MarketData {
   timestamp: Date;
   price: number;
   sentiment: number;
   forecast?: number;
+}
+
+export interface AgentInsight {
+  label: string;
+  value: string;
+  trend: 'up' | 'down' | 'neutral';
+  icon: string;
+}
+
+export interface AgentResponse {
+  summary: string;
+  insights: AgentInsight[];
+  recommendation?: {
+    action: 'BUY' | 'SELL' | 'HOLD' | 'WATCH';
+    confidence: number;
+    reason: string;
+  };
 }
 
 export interface AdapterState {
@@ -73,7 +90,7 @@ export class AlphaAdapterService {
     })));
   }
 
-  async askAgent(prompt: string) {
+  async askAgent(prompt: string): Promise<AgentResponse | string> {
     const model = "gemini-3.1-pro-preview";
     const adapter = this.activeAdapter();
     
@@ -82,25 +99,61 @@ export class AlphaAdapterService {
       Current Active Adapter: ${adapter?.name} (${adapter?.sector} focus).
       You use Model Context Protocol (MCP) to maintain state across market cycles.
       Your tone is professional, analytical, and data-driven.
-      When discussing market data, refer to the current price trends and sentiment scores.
-      Current Price: ${this.marketData().slice(-1)[0].price.toFixed(2)}
-      Current Sentiment: ${this.marketData().slice(-1)[0].sentiment.toFixed(1)}%
       
-      Maintain a "Portfolio State" for the user. If they mention assets, remember them.
+      Current Market Context:
+      - Price: ${this.marketData().slice(-1)[0].price.toFixed(2)}
+      - Sentiment: ${this.marketData().slice(-1)[0].sentiment.toFixed(1)}%
+      
+      You MUST respond with a structured JSON object. 
+      - summary: A concise 1-2 sentence overview.
+      - insights: 2-4 specific data points (e.g., "RSI", "Volume Delta", "Sector Flow").
+      - recommendation: (Optional) A clear action if the data supports it.
+      
+      Icons should be Material Icon names (e.g., 'trending_up', 'show_chart', 'account_balance').
     `;
 
     try {
-      const chat = this.ai.chats.create({
+      const response: GenerateContentResponse = await this.ai.models.generateContent({
         model,
+        contents: prompt,
         config: {
           systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              summary: { type: Type.STRING },
+              insights: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    label: { type: Type.STRING },
+                    value: { type: Type.STRING },
+                    trend: { type: Type.STRING, enum: ['up', 'down', 'neutral'] },
+                    icon: { type: Type.STRING }
+                  },
+                  required: ['label', 'value', 'trend', 'icon']
+                }
+              },
+              recommendation: {
+                type: Type.OBJECT,
+                properties: {
+                  action: { type: Type.STRING, enum: ['BUY', 'SELL', 'HOLD', 'WATCH'] },
+                  confidence: { type: Type.NUMBER },
+                  reason: { type: Type.STRING }
+                },
+                required: ['action', 'confidence', 'reason']
+              }
+            },
+            required: ['summary', 'insights']
+          }
         }
       });
 
-      // We simulate history by sending messages
-      // In a real app, we'd use the history array properly
-      const response: GenerateContentResponse = await chat.sendMessage({ message: prompt });
-      return response.text;
+      const text = response.text;
+      if (!text) throw new Error("Empty response");
+      return JSON.parse(text) as AgentResponse;
     } catch (error) {
       console.error("Gemini Error:", error);
       return "Error connecting to Alpha-Adapter core. Please check your connection.";
