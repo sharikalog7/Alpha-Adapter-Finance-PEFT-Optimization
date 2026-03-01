@@ -1,0 +1,5 @@
+{
+  "name": "Alpha-Adapter",
+  "description": "Stateful financial sentiment and forecasting engine using PEFT/LoRA adapters and Model Context Protocol simulation.",
+  "requestFramePermissions": []
+}

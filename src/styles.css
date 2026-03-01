@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Playfair Display", serif;
+
+  --color-finance-bg: #0A0A0B;
+  --color-finance-card: #141416;
+  --color-finance-border: #232326;
+  --color-finance-accent: #00FF94;
+  --color-finance-text: #E4E4E7;
+  --color-finance-muted: #71717A;
+}
+
+@layer base {
+  body {
+    @apply bg-finance-bg text-finance-text font-sans antialiased;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-finance-border rounded-full hover:bg-finance-muted transition-colors;
+}
+
+/* D3 Chart Styles */
+.chart-line {
+  fill: none;
+  stroke-width: 2;
+}
+
+.chart-area {
+  fill-opacity: 0.1;
+}
+
+.grid-line {
+  stroke: var(--color-finance-border);
+  stroke-opacity: 0.5;
+  stroke-dasharray: 2,2;
+}
+
+.axis-text {
+  @apply font-mono text-[10px] fill-finance-muted;
+}
